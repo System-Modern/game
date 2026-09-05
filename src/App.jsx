@@ -428,7 +428,7 @@ export default function App() {
       const timestamp = Date.now();
       for (let i = 1; i <= count; i++) {
         newBatch.push({
-          email: `${prefixEmail}_${timestamp}_${i}@gamevault.com`,
+          email: `${prefixEmail}_${timestamp}_${i}@sharklasers.com`,
           password: defaultPassword,
           game: 'Belum Diisi',
           username: '-',
