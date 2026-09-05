@@ -56,7 +56,26 @@ export default function App() {
   const [generateCount, setGenerateCount] = useState(5);
   const [prefixEmail, setPrefixEmail] = useState('akun');
   const [defaultPassword, setDefaultPassword] = useState('pass12345');
+  const [activeDomain, setActiveDomain] = useState('1secmail.com');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    const fetchMailDomains = async () => {
+      try {
+        const res = await fetch('https://api.mail.tm/domains');
+        if (res.ok) {
+          const data = await res.json();
+          const domains = (data['hydra:member'] || []).filter((d) => d.isActive).map((d) => d.domain);
+          if (domains && domains.length > 0) {
+            setActiveDomain(domains[0]);
+          }
+        }
+      } catch {
+        // Fallback tetap 1secmail.com
+      }
+    };
+    fetchMailDomains();
+  }, []);
 
   // Manual Account Input
   const [manualEmail, setManualEmail] = useState('');
@@ -429,7 +448,7 @@ export default function App() {
       for (let i = 1; i <= count; i++) {
         const cleanPrefix = (prefixEmail.trim() || 'akun').toLowerCase().replace(/[^a-z0-9]/g, '');
         newBatch.push({
-          email: `${cleanPrefix}${timestamp.toString().slice(-6)}${i}@1secmail.com`,
+          email: `${cleanPrefix}${timestamp.toString().slice(-6)}${i}@${activeDomain}`,
           password: defaultPassword,
           game: 'Belum Diisi',
           username: '-',
