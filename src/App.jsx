@@ -658,22 +658,35 @@ export default function App() {
 
   const fetchEmailInbox = async (targetEmail) => {
     setLoadingInbox(true);
-    setInbox([]);
     try {
+      // 1. Ambil data pesan yang sudah tersimpan di database Supabase terlebih dahulu
+      const { data: dbData } = await supabase
+        .from('account_inbox')
+        .select('*')
+        .eq('account_email', targetEmail)
+        .order('received_at', { ascending: false });
+
+      if (dbData && dbData.length > 0) {
+        setInbox(
+          dbData.map((item) => ({
+            id: item.message_id || String(item.id),
+            from: item.sender,
+            subject: item.subject,
+            textBody: item.body_text,
+            received_at: item.received_at,
+          }))
+        );
+      }
+
+      // 2. Tarik pesan terbaru via Edge Function (dan otomatis simpan ke database)
       const { data, error } = await supabase.functions.invoke('fetch-inbox', { body: { targetEmail } });
-      if (error) throw error;
-      const results = Array.isArray(data) ? data : [];
-      setInbox(results);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setInbox(data);
+      } else if (!dbData || dbData.length === 0) {
+        setInbox(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
-      const dummyInbox = [
-        {
-          from: 'no-reply@verification.game.com',
-          subject: 'Kode Verifikasi OTP Akun',
-          textBody: 'Kode OTP verifikasi Anda adalah: 893210',
-          received_at: new Date().toISOString(),
-        },
-      ];
-      setInbox(dummyInbox);
+      console.error('Error fetching inbox:', err);
     } finally {
       setLoadingInbox(false);
     }
