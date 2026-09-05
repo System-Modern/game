@@ -1,12 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Baca dari environment variable, atau gunakan fallback default project agar tidak crash
+const defaultUrl = 'https://msthucqijrjmmntsdscm.supabase.co';
+const defaultKey = 'sb_publishable_-mgfP8xp-YlJDNmHtmonZw_nN0CR8gz';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '[Game Vault Warning] Supabase URL atau Anon Key belum dikonfigurasi di file .env! Silakan salin .env.example menjadi .env dan isi dengan kredensial Supabase Anda.'
-  );
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || defaultUrl;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || defaultKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
