@@ -62,16 +62,14 @@ export default function App() {
   useEffect(() => {
     const fetchMailDomains = async () => {
       try {
-        const res = await fetch('https://api.mail.tm/domains');
-        if (res.ok) {
-          const data = await res.json();
-          const domains = (data['hydra:member'] || []).filter((d) => d.isActive).map((d) => d.domain);
-          if (domains && domains.length > 0) {
-            setActiveDomain(domains[0]);
-          }
+        const { data, error } = await supabase.functions.invoke('fetch-inbox', {
+          body: { action: 'get-domains' },
+        });
+        if (!error && data?.domains && data.domains.length > 0) {
+          setActiveDomain(data.domains[0]);
         }
-      } catch {
-        // Fallback tetap 1secmail.com
+      } catch (err) {
+        console.error('Error fetching domains via Edge Function:', err);
       }
     };
     fetchMailDomains();
