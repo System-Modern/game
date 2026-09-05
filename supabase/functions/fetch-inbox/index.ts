@@ -20,71 +20,120 @@ serve(async (req) => {
       });
     }
 
+    // Penanganan khusus Gmail
     if (targetEmail.endsWith('@gmail.com')) {
       return new Response(
         JSON.stringify([{
           id: 'notice',
           from: 'System Security',
           subject: 'Pemberitahuan Akun Gmail',
-          textBody: 'Email ini menggunakan domain @gmail.com. Silakan login langsung di gmail.com.'
+          textBody: 'Email ini menggunakan domain @gmail.com. Silakan login langsung di mail.google.com.'
         }]),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Ambil Username dari alamat email (misal "343.h0daa4rg" dari "343.h0daa4rg@sharklasers.com")
-    const [emailUser] = targetEmail.split('@');
+    const [login, domain] = targetEmail.split('@');
+    const domainLower = (domain || '').toLowerCase();
 
-    // 1. Set Sesi Email di Guerrilla Mail
-    const sessionRes = await fetch(
-      `https://api.guerrillamail.com/ajax.php?f=set_email_user&email_user=${encodeURIComponent(emailUser)}&ip=127.0.0.1&agent=Mozilla`
-    );
-    const sessionData = await sessionRes.json();
-    const sid_token = sessionData.sid_token;
+    // =========================================================================
+    // ENGINE 1: 1secmail (Ultra Cepat & Real-Time Instant Delivery)
+    // Domain: 1secmail.com, 1secmail.org, 1secmail.net, kzccv.com, qiott.com, wuuvo.com, icznn.com
+    // =========================================================================
+    const secMailDomains = ['1secmail.com', '1secmail.org', '1secmail.net', 'kzccv.com', 'qiott.com', 'wuuvo.com', 'icznn.com'];
+    const isSecMail = secMailDomains.includes(domainLower) || !domainLower.includes('sharklasers') && !domainLower.includes('guerrillamail');
 
-    // 2. Ambil Daftar Email Masuk
-    const inboxRes = await fetch(
-      `https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token=${sid_token}`
-    );
-    const inboxData = await inboxRes.json();
+    if (isSecMail) {
+      const activeDomain = secMailDomains.includes(domainLower) ? domainLower : '1secmail.com';
+      const cleanLogin = login.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    if (!inboxData.list || inboxData.list.length === 0) {
-      return new Response(JSON.stringify([]), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // 3. FILTER: Buang email otomatis dari Guerrilla Mail
-    const realEmails = inboxData.list.filter((msg: any) => 
-      !msg.mail_from.includes('no-reply@guerrillamail.com') &&
-      !msg.mail_from.includes('guerrillamail.com') &&
-      !msg.mail_subject.includes('Welcome to Guerrilla Mail')
-    );
-
-    if (realEmails.length === 0) {
-      return new Response(JSON.stringify([]), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // 4. Fetch detail pesan untuk email yang lolos filter (Email OTP / Kiriman Manual)
-    const emailPromises = realEmails.map(async (msg: any) => {
-      const fetchMsgRes = await fetch(
-        `https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id=${msg.mail_id}&sid_token=${sid_token}`
+      const listRes = await fetch(
+        `https://www.1secmail.com/api/v1/?action=getMessages&login=${encodeURIComponent(cleanLogin)}&domain=${encodeURIComponent(activeDomain)}`
       );
-      const msgData = await fetchMsgRes.json();
 
-      return {
-        id: msg.mail_id,
-        from: msg.mail_from,
-        subject: msg.mail_subject,
-        textBody: msgData.mail_body || msg.mail_excerpt || 'Pesan kosong.',
-      };
-    });
+      if (listRes.ok) {
+        const messages = await listRes.json();
+        if (Array.isArray(messages) && messages.length > 0) {
+          const detailPromises = messages.map(async (msg: any) => {
+            try {
+              const msgRes = await fetch(
+                `https://www.1secmail.com/api/v1/?action=readMessage&login=${encodeURIComponent(cleanLogin)}&domain=${encodeURIComponent(activeDomain)}&id=${msg.id}`
+              );
+              if (!msgRes.ok) return null;
+              const msgData = await msgRes.json();
+              return {
+                id: msg.id,
+                from: msg.from,
+                subject: msg.subject,
+                textBody: msgData.textBody || msgData.body?.replace(/<[^>]*>?/gm, '') || msg.subject,
+                received_at: msg.date || new Date().toISOString(),
+              };
+            } catch {
+              return null;
+            }
+          });
 
-    const formattedInbox = await Promise.all(emailPromises);
+          const results = (await Promise.all(detailPromises)).filter(Boolean);
+          if (results.length > 0) {
+            return new Response(JSON.stringify(results), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      }
+    }
 
-    return new Response(JSON.stringify(formattedInbox), {
+    // =========================================================================
+    // ENGINE 2: Guerrilla Mail (sharklasers.com, guerrillamail.com, grr.la)
+    // =========================================================================
+    try {
+      const sessionRes = await fetch(
+        `https://api.guerrillamail.com/ajax.php?f=set_email_user&email_user=${encodeURIComponent(login)}&ip=127.0.0.1&agent=Mozilla`
+      );
+      const sessionData = await sessionRes.json();
+      const sid_token = sessionData?.sid_token;
+
+      if (sid_token) {
+        const inboxRes = await fetch(
+          `https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token=${sid_token}`
+        );
+        const inboxData = await inboxRes.json();
+
+        if (inboxData.list && inboxData.list.length > 0) {
+          const realEmails = inboxData.list.filter((msg: any) =>
+            !msg.mail_from.includes('no-reply@guerrillamail.com') &&
+            !msg.mail_from.includes('guerrillamail.com') &&
+            !msg.mail_subject.includes('Welcome to Guerrilla Mail')
+          );
+
+          if (realEmails.length > 0) {
+            const emailPromises = realEmails.map(async (msg: any) => {
+              const fetchMsgRes = await fetch(
+                `https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id=${msg.mail_id}&sid_token=${sid_token}`
+              );
+              const msgData = await fetchMsgRes.json();
+              return {
+                id: msg.mail_id,
+                from: msg.mail_from,
+                subject: msg.mail_subject,
+                textBody: msgData.mail_body || msg.mail_excerpt || 'Pesan kosong.',
+                received_at: new Date().toISOString(),
+              };
+            });
+
+            const formattedInbox = await Promise.all(emailPromises);
+            return new Response(JSON.stringify(formattedInbox), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      }
+    } catch (gErr) {
+      console.error('Guerrilla fetch error:', gErr);
+    }
+
+    // Jika belum ada pesan masuk
+    return new Response(JSON.stringify([]), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

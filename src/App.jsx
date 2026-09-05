@@ -54,7 +54,7 @@ export default function App() {
 
   // Batch Account Generator Input
   const [generateCount, setGenerateCount] = useState(5);
-  const [prefixEmail, setPrefixEmail] = useState('akun_game');
+  const [prefixEmail, setPrefixEmail] = useState('akun');
   const [defaultPassword, setDefaultPassword] = useState('pass12345');
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -427,8 +427,9 @@ export default function App() {
       const newBatch = [];
       const timestamp = Date.now();
       for (let i = 1; i <= count; i++) {
+        const cleanPrefix = (prefixEmail.trim() || 'akun').toLowerCase().replace(/[^a-z0-9]/g, '');
         newBatch.push({
-          email: `${prefixEmail}_${timestamp}_${i}@sharklasers.com`,
+          email: `${cleanPrefix}${timestamp.toString().slice(-6)}${i}@1secmail.com`,
           password: defaultPassword,
           game: 'Belum Diisi',
           username: '-',
